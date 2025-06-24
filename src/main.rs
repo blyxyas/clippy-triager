@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut to_review: Vec<u64> = Vec::new();
 
     for item in page.items {
-        if Path::new(&format!("issues_repros/id{}.rs", item.number)).exists() {
+        if Path::new(&format!("issues_repros/id{}.rs", item.number)).exists() || Path::new(&format!("issues_repros/triaged/id{}.rs", item.number)).exists() {
             continue;
         }
         // Just some redundancy here to avoid false positives in the false positive finder lol
@@ -196,7 +196,9 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
         .output().expect("Failed to start the cargo command");
     if let Some(code) = output.status.code() && code != 1 { // Other errors are 130 and 131
         println!("{} Couldn't be reproduced, what happened? Checkout <https://github.com/rust-lang/rust-clippy/issues/{}>", &path.file_name().into_string().unwrap()[2..][..5], &path.file_name().into_string().unwrap()[2..][..5]);
-        print_with_highlight(&read_to_string(path.path()).unwrap(), ps, ts);
+        
+        let file_to_string = read_to_string(path.path()).unwrap();
+        print_with_highlight(&file_to_string, ps, ts);
         println!("PRESS ENTER TO CONTINUE");
         let mut inp = String::with_capacity(64);
         std::io::stdin()
