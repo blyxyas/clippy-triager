@@ -1,5 +1,5 @@
 #![feature(let_chains)]
-use octocrab::{self, params::issues::Sort};
+use octocrab::{self, params::{issues::Sort, State}};
 use std::fs::{self, read_to_string};
 use std::io::Write;
 use std::path::Path;
@@ -54,6 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let page = octo
         .issues("rust-lang", "rust-clippy")
         .list()
+        .labels(&[String::from("C-bug")])
+        .assignee("none")
+        .state(State::Open)
         .sort(Sort::Created)
         .per_page(100)
         .page(args.page)
@@ -66,7 +69,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if Path::new(&format!("issues_repros/id{}.rs", item.number)).exists() {
             continue;
         }
+        // Just some redundancy here to avoid false positives in the false positive finder lol
         if item.assignee.is_none()
+            && item.pull_request.is_none()
             && item
                 .labels
                 .iter()
