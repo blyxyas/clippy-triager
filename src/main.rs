@@ -148,6 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let output = Command::new("clippy-driver")
             .arg("-Dclippy::all")
+            .arg("--emit=dep-info,metadata,link")
+            .arg("-Cembed-bitcode=no")
             .arg(&Path::new(&std::env::current_dir().unwrap()).join("issues_repros").join(format!("id{}.rs", id.to_string())).display().to_string())
             // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
             .output().expect("Failed to start the cargo command");
@@ -191,6 +193,8 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
 
         let output = Command::new("clippy-driver")
         .arg("-Dclippy::all")
+        .arg("--emit=dep-info,metadata,link")
+        .arg("-Cembed-bitcode=no")
         .arg(path.path())
         // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
         .output().expect("Failed to start the cargo command");
@@ -199,11 +203,17 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
         
         let file_to_string = read_to_string(path.path()).unwrap();
         print_with_highlight(&file_to_string, ps, ts);
-        println!("PRESS ENTER TO CONTINUE");
+        println!("Move this to triaged? [y/n]");
         let mut inp = String::with_capacity(64);
         std::io::stdin()
             .read_line(&mut inp)
             .expect("Something went wrong while reading input");
+
+        if inp.to_lowercase().trim() == "y" {
+            fs::rename(path.path(), format!("issues_repros/triaged/{}", path.file_name().to_string_lossy())).unwrap();
+        } else {
+            println!("Counting as not triaged");
+        }
     } else {
         println!("{} reproduces!", &path.file_name().into_string().unwrap()[1..][..5]);
 let s = match std::str::from_utf8(&output.stdout) {
