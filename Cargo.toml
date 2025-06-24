@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.40", features = ["derive"] }
 octocrab = "0.44.1"
+owo-colors = "4.2.1"
 syntect = "5.2.0"
 tokio = { version = "1.45.1", features = ["full", "rt"] }
