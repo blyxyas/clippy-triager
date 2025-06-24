@@ -148,7 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let output = Command::new("clippy-driver")
             .arg("-Dclippy::all")
-            .arg("--emit=dep-info,metadata,link")
+            .arg("--emit=metadata")
+            .arg(&format!("-o=target/id{}", id.to_string()))
             .arg("-Cembed-bitcode=no")
             .arg(&Path::new(&std::env::current_dir().unwrap()).join("issues_repros").join(format!("id{}.rs", id.to_string())).display().to_string())
             // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
@@ -193,7 +194,8 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
 
         let output = Command::new("clippy-driver")
         .arg("-Dclippy::all")
-        .arg("--emit=dep-info,metadata,link")
+        .arg("--emit=metadata")
+        .arg(&format!("-o=target/{}", path.file_name().to_string_lossy()))
         .arg("-Cembed-bitcode=no")
         .arg(path.path())
         // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");

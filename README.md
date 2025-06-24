@@ -37,3 +37,12 @@ cargo r -r -- --ignore-comment-count
 ```
 
 Ignore comment count (normally we only care about issues with 0 comments and no assignees)
+
+## Contributing
+
+Contributing is obviously welcomed, but curently the best way to help this
+effort is to triage issues and check that they're beginner friendly and
+appropiate to fix in the feature freeze.
+
+See https://github.com/rust-lang/rust-clippy/issues/15086
+
