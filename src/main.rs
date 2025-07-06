@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             dbg!(&item.number);
             let item_body = item.body.clone().unwrap();
-            let Some(after_repro) = item_body.split_once("### Reproducer") else {
+            let Some(after_repro) = item_body.split_once("# Reproducer") else {
                 println!("Without repro");
                 continue;
             };
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let concatenated = format!(
-                "//{}\n\n{}",
+                "//{}\n\n{}\n{}",
                 &format!(
                     "ISSUE #{} <https://github.com/rust-lang/rust-clippy/issues/{}> - {}",
                     item.number,
@@ -109,7 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .collect::<Vec<String>>()
                         .join(", ")
                 ),
-                just_repro
+                just_repro,
+                if just_repro.contains("main") { "" } else { "fn main() {}" }
             );
             print_with_highlight(&concatenated, &ps, &ts);
 
@@ -149,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let output = Command::new("clippy-driver")
             .arg("-Dclippy::all")
             .arg("--emit=metadata")
-            .arg(&format!("-o=target/id{}", id.to_string()))
+            .arg(&format!("-otarget/id{}", id.to_string()))
             .arg("-Cembed-bitcode=no")
             .arg(&Path::new(&std::env::current_dir().unwrap()).join("issues_repros").join(format!("id{}.rs", id.to_string())).display().to_string())
             // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
@@ -193,10 +194,12 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
         println!("Testing {}", path.path().to_string_lossy());
 
         let output = Command::new("clippy-driver")
+        .arg("-Awarnings")
         .arg("-Dclippy::all")
         .arg("--emit=metadata")
-        .arg(&format!("-o=target/{}", path.file_name().to_string_lossy()))
+        .arg(&format!("-otarget/{}", path.file_name().to_string_lossy()))
         .arg("-Cembed-bitcode=no")
+        .arg("--edition=2024")
         .arg(path.path())
         // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
         .output().expect("Failed to start the cargo command");
@@ -217,17 +220,19 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
             println!("Counting as not triaged");
         }
     } else {
-        println!("{} reproduces!", &path.file_name().into_string().unwrap()[1..][..5]);
+        println!("{} reproduces!", &path.file_name().into_string().unwrap()[2..][..5]);
 let s = match std::str::from_utf8(&output.stdout) {
                 Ok(v) => v,
                 Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
             };
-        // dbg!(s);
-
-        let s = match std::str::from_utf8(&output.stderr) {
+            
+            let s = match std::str::from_utf8(&output.stderr) {
                 Ok(v) => v,
                 Err(e) => panic!("Invalid UTF-8 s"),
-        };
+            };
+        if !s.contains("clippy") {
+            println!("Something's wrong with {}? An error happens but not with Clippy", &path.file_name().into_string().unwrap()[2..][..5]);
+        }
         // dbg!(&s);
     }
     }
