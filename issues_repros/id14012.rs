@@ -1,4 +1,5 @@
 //ISSUE #14012 - C-bug, I-false-positive
+fn main() {}
 
 struct WrapErr(String);
 

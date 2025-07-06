@@ -1,5 +1,5 @@
 //ISSUE #13870 - C-bug, I-false-positive
-
+fn main() {
 let mut collection = [4, 3, 2, 1];
     let mut i = 0;
     'outer: while i < collection.len() {
@@ -13,3 +13,4 @@ let mut collection = [4, 3, 2, 1];
 
         i += 1;
     }
+}

@@ -1,4 +1,5 @@
 //ISSUE #15042 - C-bug
+fn main() {}
 
 pub fn inner_type(ty: &Type) -> &Type {
     if let Type::Path(TypePath { path, .. }) = ty {

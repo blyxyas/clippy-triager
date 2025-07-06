@@ -1,4 +1,5 @@
 //ISSUE #13356 - C-bug, I-false-positive
+fn main() {}
 
 #[expect(clippy::derived_hash_with_manual_eq)]
 #[derive(Hash)]

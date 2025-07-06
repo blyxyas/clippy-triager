@@ -1,4 +1,5 @@
 //ISSUE #14322 - C-bug, I-suggestion-causes-error, I-false-positive
+fn main() {}
 
 pub trait MyTrait {
     type Borrowed<'a>;

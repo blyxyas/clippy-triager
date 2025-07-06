@@ -1,4 +1,6 @@
+#!/usr/bin/env -S cargo +nightly -Zscript
 //ISSUE #14017 - C-bug, I-false-positive
+fn main() {}
 
 pub fn print_1_arg() {
     #![expect(clippy::disallowed_macros)]

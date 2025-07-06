@@ -1,4 +1,5 @@
 //ISSUE #13617 - C-bug
+fn main() {}
 
 pub trait MyTrait {
     type MyAssociatedType;

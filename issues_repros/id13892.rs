@@ -1,4 +1,5 @@
 //ISSUE #13892 <https://github.com/rust-lang/rust-clippy/issues/13892> - C-bug, I-suggestion-causes-error, I-false-positive
+fn main() {}
 
 pub async fn visit_async<'a, T, const N: usize, F>(array: &'a [T; N], visitor: F)
 where

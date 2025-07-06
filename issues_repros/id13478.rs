@@ -1,4 +1,5 @@
 //ISSUE #13478 - C-bug, I-false-positive
+fn main() {}
 
 pub fn my_method(&self, param: impl AsRef<str>) {
     self._my_method(param.as_ref())

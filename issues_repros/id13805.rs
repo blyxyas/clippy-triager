@@ -1,4 +1,5 @@
 //ISSUE #13805 - C-bug, I-false-negative
+fn main() {}
 
 pub fn linted1(input: Option<i32>) {
     if input.is_some() {

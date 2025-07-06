@@ -1,4 +1,5 @@
 //ISSUE #14149 - C-bug, I-false-positive
+fn main() {}
 
 use std::cmp::Ordering;
 

@@ -1,6 +1,6 @@
 //ISSUE #14004 <https://github.com/rust-lang/rust-clippy/issues/14004> - C-bug, I-suggestion-causes-error
 
-#![warn(clippy::iter_without_into_iter)]
+#![deny(clippy::iter_without_into_iter)]
 #![allow(unused)]
 
 pub mod inner {

@@ -1,6 +1,8 @@
 //ISSUE #13277 - C-bug, I-false-positive
 
 #![warn(clippy::use_self)]
+fn main() {}
+
 trait Foo {
     type Item<'foo>;
 }
