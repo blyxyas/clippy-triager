@@ -7,7 +7,7 @@ use tokio;
 use tokio::time::{Duration, sleep};
 use std::process::Command;
 
-use owo_colors;
+use owo_colors::{Style as OwoStyle, OwoColorize};
 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, ThemeSet};
@@ -31,12 +31,17 @@ struct Arguments {
     ignore_comment_count: bool
 }
 
+const COMPLETE: owo_colors::Style = OwoStyle::new()
+        .green()
+        .bold();
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Arguments::parse();
 
     let ps = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
+
 
     if args.bisect {
         bisect();
@@ -136,12 +141,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // REMOVE THIS LATER
 
     println!(
-        "All the items from page {} have been analyzed, proceeding to test them",
+        "{} All the items from page {} have been analyzed, proceeding to test them",
+        "Complete".style(COMPLETE),
         args.page
     );
 
     for id in to_review {
-        println!("Testing {id}...");
+        println!("{} {id}...", "Testing".style(COMPLETE));
     
         dbg!(&Path::new(&std::env::current_dir().unwrap()).join("issues_repros").join(format!("id{}.rs", id.to_string())).display().to_string());
 
@@ -156,9 +162,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // .env("LD_LIBRARY_PATH", "/home/meow/.rustup/toolchains/nightly-2025-06-12-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib");
             .output().expect("Failed to start the cargo command");
         if let Some(code) = output.status.code() && code != 1 { // Other errors are 130 and 131
-            println!("{id} Couldn't be reproduced, what happened? Checkout <https://github.com/rust-lang/rust-clippy/issues/{id}>");
+            println!("{}", format!("{id} Couldn't be reproduced, what happened? Checkout <https://github.com/rust-lang/rust-clippy/issues/{id}>").red().bold());
         } else {
-            println!("{id} reproduces!");
+            println!("{} {id} reproduces!", "Checking".style(COMPLETE));
    let s = match std::str::from_utf8(&output.stdout) {
                     Ok(v) => v,
                     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
@@ -184,14 +190,14 @@ fn print_with_highlight(s: &str, ps: &SyntaxSet, ts: &ThemeSet) {
         let escaped = as_24_bit_terminal_escaped(&ranges[..], true);
         print!("{}", escaped);
     }
-    print!("\033[0m");
+    print!("{}", "".on_default_color());
 }
 
 fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
     let paths = fs::read_dir("issues_repros").unwrap();
     for path in paths {
         let path = path.unwrap();
-        println!("Testing {}", path.path().to_string_lossy());
+        println!("{} {}", "Testing".style(COMPLETE), path.path().to_string_lossy());
 
         let output = Command::new("clippy-driver")
         .arg("-Awarnings")
@@ -220,7 +226,7 @@ fn only_test_repro(ps: &SyntaxSet, ts: &ThemeSet) {
             println!("Counting as not triaged");
         }
     } else {
-        println!("{} reproduces!", &path.file_name().into_string().unwrap()[2..][..5]);
+        println!("{} {} reproduces!", "Checking".style(COMPLETE), &path.file_name().into_string().unwrap()[2..][..5]);
 let s = match std::str::from_utf8(&output.stdout) {
                 Ok(v) => v,
                 Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
@@ -242,7 +248,7 @@ fn bisect() {
     let paths = fs::read_dir("issues_repros").unwrap();
     for path in paths {
         let path = path.unwrap();
-        println!("BISECTING {}", path.path().to_string_lossy());
+        println!("{} {}", "Bisecting".style(COMPLETE), path.path().to_string_lossy());
 
         let output = Command::new("cargo")
         .arg("bisect-rustc")
