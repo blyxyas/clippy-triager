@@ -28,7 +28,7 @@ struct Arguments {
     #[arg(long, default_value = "false")]
     repro: bool,
     #[arg(long, default_value = "false")]
-    ignore_comment_count: bool
+    ignore_comment_count: bool,
 }
 
 const COMPLETE: owo_colors::Style = OwoStyle::new()

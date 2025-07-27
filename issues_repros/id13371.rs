@@ -1,4 +1,5 @@
 //ISSUE #13371 - C-bug, I-false-positive
+#![deny(clippy::single_match)]
 
 struct NotFoundError;
 
