@@ -43,6 +43,10 @@ struct Arguments {
     ld_lib_path: String,
     #[arg(long, default_value = "-Wclippy::all")]
     rustflags: String,
+    #[arg(long, default_value = "false")]
+    pr_history: bool,
+    #[arg(long, default_value = "false")]
+    pr_history_read: bool
 }
 
 const COMPLETE: owo_colors::Style = OwoStyle::new()
@@ -82,6 +86,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sleep(Duration::from_secs(5)).await; // Sleep 5 seconds to make sure that Github doesn't rate limit us
 
     let octo = octocrab::instance().user_access_token(std::env::var("GH_TOKEN__").unwrap())?;
+
+    if args.pr_history {
+        for i in 0..=50 {
+            if let Ok(()) = pr_history(Box::new(octo.clone()), Box::new(i), args.pr_history_read).await {
+                return Ok(())
+            }
+        };
+        return Ok(())
+    }
+
     let page = octo
         .issues("rust-lang", "rust-clippy")
         .list()
@@ -375,6 +389,8 @@ fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn
         branch_ir_collected += cap[0].split("Collected : ").collect::<Vec<&str>>()[1].parse::<i128>().unwrap();
     }
     
+    dbg!(branch_ir_collected);
+
     std::fs::remove_dir_all(format!("/tmp/mc{}branch", pr)).unwrap();
     std::fs::remove_dir_all(format!("/tmp/mc{}master", pr)).unwrap();
 
@@ -386,4 +402,33 @@ fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn
     }
 
     Ok(())
+}
+
+async fn pr_history(octo: Box<Octocrab>, page: Box<u32>, read: bool) -> Result<(), ()> {
+    let pulls = octo
+        .pulls("rust-lang", "rust-clippy")
+        .list()
+        .state(State::All)
+        .sort(pulls::Sort::Created)
+        .page(*page)
+        .direction(Direction::Descending)
+        .per_page(100)
+        .send()
+        .await.unwrap();
+
+    for pull in pulls {
+        // if pull.created_at.unwrap().date_naive() >= NaiveDate::from_ymd_opt(2025, 06, 26).unwrap()
+        // && pull.created_at.unwrap().date_naive() <= NaiveDate::from_ymd_opt(2025, 09, 18).unwrap(){
+            // println!("{} - {}", pull.url.split("/").last().unwrap(), pull.created_at.unwrap().date_naive());
+        // }
+        println!("{} - {}", pull.url.split("/").last().unwrap(), pull.user.unwrap().login);
+        if pull.url.split("/").last().unwrap() == "5671" {
+            
+            return Ok(())
+        }
+    }
+
+    println!("Sleeping...");
+    sleep(Duration::from_secs(10)).await;
+    Err(())
 }
