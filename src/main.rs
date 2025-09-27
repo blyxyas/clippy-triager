@@ -1,5 +1,6 @@
+#![feature(f128)]
 #![feature(let_chains)]
-use octocrab::{self, params::{issues::Sort, State}};
+use octocrab::{self, Octocrab, params::{Direction, State, issues::Sort, pulls}};
 use std::fs::{self, read_to_string};
 use std::io::Write;
 use std::path::Path;
@@ -7,12 +8,15 @@ use tokio;
 use tokio::time::{Duration, sleep};
 use std::process::Command;
 
+use chrono::NaiveDate;
 use owo_colors::{Style as OwoStyle, OwoColorize};
 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
+
+use regex::Regex;
 
 use clap::Parser;
 
@@ -21,7 +25,7 @@ struct Arguments {
     #[arg(long, default_value = "0")]
     page: u32,
     /// Path to your clippy checkout
-    #[arg(long, default_value = "../rust-clippy")]
+    #[arg(long, default_value = "/home/meow/git/rust-clippy")]
     clippy: String,
     #[arg(long, default_value = "false")]
     bisect: bool,
@@ -29,6 +33,20 @@ struct Arguments {
     repro: bool,
     #[arg(long, default_value = "false")]
     ignore_comment_count: bool,
+    /// Turn the tool into profiling mode (incompatible with every other thing, needs Callgrind)
+    #[arg(long, default_value = "false")]
+    profile: bool,
+    /// ID of the PR to profile (needs Callgrind)
+    #[arg(long, default_value = "0")]
+    profile_pr: usize,
+    #[arg(long, default_value = "")]
+    ld_lib_path: String,
+    #[arg(long, default_value = "-Wclippy::all")]
+    rustflags: String,
+    #[arg(long, default_value = "false")]
+    pr_history: bool,
+    #[arg(long, default_value = "false")]
+    pr_history_read: bool
 }
 
 const COMPLETE: owo_colors::Style = OwoStyle::new()
@@ -42,6 +60,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ps = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
 
+    if args.profile {
+        if args.profile_pr == 0 {
+            panic!("--profile-pr needs to be provided");
+        }
+        if args.ld_lib_path == "" {
+            panic!("--lib-lib-path needs to be provided");
+        }
+
+        profile(args.profile_pr, args.ld_lib_path, args.rustflags, args.clippy)?;
+        return Ok(());
+    }
 
     if args.bisect {
         bisect();
@@ -53,9 +82,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(())
     }
 
+
     sleep(Duration::from_secs(5)).await; // Sleep 5 seconds to make sure that Github doesn't rate limit us
 
     let octo = octocrab::instance().user_access_token(std::env::var("GH_TOKEN__").unwrap())?;
+
+    if args.pr_history {
+        for i in 0..=50 {
+            if let Ok(()) = pr_history(Box::new(octo.clone()), Box::new(i), args.pr_history_read).await {
+                return Ok(())
+            }
+        };
+        return Ok(())
+    }
+
     let page = octo
         .issues("rust-lang", "rust-clippy")
         .list()
@@ -272,4 +312,123 @@ fn bisect() {
             };
         }
     }
+}
+
+fn profile(pr: usize, lib_path: String, rustflags: String, clippy: String) -> Result<(), Box<dyn std::error::Error>>{
+    let output = Command::new("git")
+        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(clippy)
+        .output()?;
+
+    let s = match std::str::from_utf8(&output.stdout) {
+        Ok(v) => v,
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+
+    if s.trim() != "master" {
+        Command::new("git")
+        .args(&["switch", "master"])
+        .current_dir(clippy)
+        .output()?;
+    }
+
+    Command::new("cargo")
+        .args(&["build", "--release"])
+        .current_dir(clippy)
+        .output()?;
+
+    let output = Command::new("valgrind")
+        .args(&["--tool=callgrind", "--dump-instr=yes", "--trace-children=yes", "../../../release/cargo-clippy"])
+        .env("CARGO_TARGET_DIR", &format!("/tmp/mc{}master", pr))
+        .env("RUSTFLAGS", &rustflags)
+        .env("LD_LIBRARY_PATH", &lib_path)
+        .current_dir(std::env::var("TO_PROFILE_PATH").unwrap())
+        .output()?;
+
+    let s = match std::str::from_utf8(&output.stderr) {
+        Ok(v) => dbg!(v),
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+
+    let re = Regex::new(r"Collected : (\d)*").unwrap();
+    let mut master_ir_collected: i128 = 0;
+    for cap in re.captures_iter(s) {
+        dbg!(cap[0].split("Collected : ").collect::<Vec<&str>>());
+        master_ir_collected += cap[0].split("Collected : ").collect::<Vec<&str>>()[1].parse::<i128>().unwrap();
+    }
+
+    dbg!(master_ir_collected);
+
+    Command::new("gh")
+        .args(&["pr", "checkout", &pr.to_string()])
+        .current_dir(clippy)
+        .output()?;
+
+    Command::new("cargo")
+        .args(&["build", "--release"])
+        .current_dir(clippy)
+        .output()?;
+
+        let output = Command::new("valgrind")
+        .args(&["--tool=callgrind", "--dump-instr=yes", "--trace-children=yes", "../../../release/cargo-clippy"])
+        .env("CARGO_TARGET_DIR", &format!("/tmp/mc{}branch", pr))
+        .env("RUSTFLAGS", rustflags)
+        .env("LD_LIBRARY_PATH", lib_path)
+        .current_dir(std::env::var("TO_PROFILE_PATH").unwrap())
+        .output()?;
+
+    let s = match std::str::from_utf8(&output.stderr) {
+        Ok(v) => v,
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+
+    let re = Regex::new(r"Collected : (\d)*").unwrap();
+    let mut branch_ir_collected: i128 = 0;
+    for cap in re.captures_iter(s) {
+        dbg!(cap[0].split("Collected : ").collect::<Vec<&str>>());
+        branch_ir_collected += cap[0].split("Collected : ").collect::<Vec<&str>>()[1].parse::<i128>().unwrap();
+    }
+    
+    dbg!(branch_ir_collected);
+
+    std::fs::remove_dir_all(format!("/tmp/mc{}branch", pr)).unwrap();
+    std::fs::remove_dir_all(format!("/tmp/mc{}master", pr)).unwrap();
+
+    let result = ((master_ir_collected as f64 - branch_ir_collected as f64) / master_ir_collected as f64) * 100.0f64;
+    if result.abs() >= 0.19f64 {
+        println!("{}% {}", ((master_ir_collected as f64 - branch_ir_collected as f64) / master_ir_collected as f64) * 100.0f64, if master_ir_collected > branch_ir_collected {"THIS IS A PERFORMANCE IMPROVEMENT"} else {"PERF. REGRESSION"});
+    } else {
+        println!("Not noticeable ({})", result);
+    }
+
+    Ok(())
+}
+
+async fn pr_history(octo: Box<Octocrab>, page: Box<u32>, read: bool) -> Result<(), ()> {
+    let pulls = octo
+        .pulls("rust-lang", "rust-clippy")
+        .list()
+        .state(State::All)
+        .sort(pulls::Sort::Created)
+        .page(*page)
+        .direction(Direction::Descending)
+        .per_page(100)
+        .send()
+        .await.unwrap();
+
+    for pull in pulls {
+        // if pull.created_at.unwrap().date_naive() >= NaiveDate::from_ymd_opt(2025, 06, 26).unwrap()
+        // && pull.created_at.unwrap().date_naive() <= NaiveDate::from_ymd_opt(2025, 09, 18).unwrap(){
+            // println!("{} - {}", pull.url.split("/").last().unwrap(), pull.created_at.unwrap().date_naive());
+        // }
+        println!("{} - {}", pull.url.split("/").last().unwrap(), pull.user.unwrap().login);
+        if pull.url.split("/").last().unwrap() == "5671" {
+            
+            return Ok(())
+        }
+    }
+
+    println!("Sleeping...");
+    sleep(Duration::from_secs(10)).await;
+    Err(())
 }
