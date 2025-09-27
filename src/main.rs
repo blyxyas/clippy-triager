@@ -25,7 +25,7 @@ struct Arguments {
     #[arg(long, default_value = "0")]
     page: u32,
     /// Path to your clippy checkout
-    #[arg(long, default_value = "../rust-clippy")]
+    #[arg(long, default_value = "/home/meow/git/rust-clippy")]
     clippy: String,
     #[arg(long, default_value = "false")]
     bisect: bool,
@@ -68,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             panic!("--lib-lib-path needs to be provided");
         }
 
-        profile(args.profile_pr, args.ld_lib_path, args.rustflags)?;
+        profile(args.profile_pr, args.ld_lib_path, args.rustflags, args.clippy)?;
         return Ok(());
     }
 
@@ -314,10 +314,10 @@ fn bisect() {
     }
 }
 
-fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn std::error::Error>>{
+fn profile(pr: usize, lib_path: String, rustflags: String, clippy: String) -> Result<(), Box<dyn std::error::Error>>{
     let output = Command::new("git")
         .args(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir("/home/meow/git/rust-clippy")
+        .current_dir(clippy)
         .output()?;
 
     let s = match std::str::from_utf8(&output.stdout) {
@@ -328,13 +328,13 @@ fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn
     if s.trim() != "master" {
         Command::new("git")
         .args(&["switch", "master"])
-        .current_dir("/home/meow/git/rust-clippy")
+        .current_dir(clippy)
         .output()?;
     }
 
     Command::new("cargo")
         .args(&["build", "--release"])
-        .current_dir("/home/meow/git/rust-clippy")
+        .current_dir(clippy)
         .output()?;
 
     let output = Command::new("valgrind")
@@ -361,12 +361,12 @@ fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn
 
     Command::new("gh")
         .args(&["pr", "checkout", &pr.to_string()])
-        .current_dir("/home/meow/git/rust-clippy")
+        .current_dir(clippy)
         .output()?;
 
     Command::new("cargo")
         .args(&["build", "--release"])
-        .current_dir("/home/meow/git/rust-clippy")
+        .current_dir(clippy)
         .output()?;
 
         let output = Command::new("valgrind")
