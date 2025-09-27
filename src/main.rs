@@ -1,6 +1,6 @@
 #![feature(f128)]
 #![feature(let_chains)]
-use octocrab::{self, params::{issues::Sort, State}};
+use octocrab::{self, Octocrab, params::{Direction, State, issues::Sort, pulls}};
 use std::fs::{self, read_to_string};
 use std::io::Write;
 use std::path::Path;
@@ -8,6 +8,7 @@ use tokio;
 use tokio::time::{Duration, sleep};
 use std::process::Command;
 
+use chrono::NaiveDate;
 use owo_colors::{Style as OwoStyle, OwoColorize};
 
 use syntect::easy::HighlightLines;
@@ -40,6 +41,8 @@ struct Arguments {
     profile_pr: usize,
     #[arg(long, default_value = "")]
     ld_lib_path: String,
+    #[arg(long, default_value = "-Wclippy::all")]
+    rustflags: String,
 }
 
 const COMPLETE: owo_colors::Style = OwoStyle::new()
@@ -61,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             panic!("--lib-lib-path needs to be provided");
         }
 
-        profile(args.profile_pr, args.ld_lib_path)?;
+        profile(args.profile_pr, args.ld_lib_path, args.rustflags)?;
         return Ok(());
     }
 
@@ -297,7 +300,7 @@ fn bisect() {
     }
 }
 
-fn profile(pr: usize, lib_path: String) -> Result<(), Box<dyn std::error::Error>>{
+fn profile(pr: usize, lib_path: String, rustflags: String) -> Result<(), Box<dyn std::error::Error>>{
     let output = Command::new("git")
         .args(&["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir("/home/meow/git/rust-clippy")
@@ -323,13 +326,13 @@ fn profile(pr: usize, lib_path: String) -> Result<(), Box<dyn std::error::Error>
     let output = Command::new("valgrind")
         .args(&["--tool=callgrind", "--dump-instr=yes", "--trace-children=yes", "../../../release/cargo-clippy"])
         .env("CARGO_TARGET_DIR", &format!("/tmp/mc{}master", pr))
-        .env("RUSTFLAGS", "-Wclippy::all")
+        .env("RUSTFLAGS", &rustflags)
         .env("LD_LIBRARY_PATH", &lib_path)
-        .current_dir("/home/meow/git/rust-clippy/target/lintcheck/sources/tokio-1.38.1")
+        .current_dir(std::env::var("TO_PROFILE_PATH").unwrap())
         .output()?;
 
     let s = match std::str::from_utf8(&output.stderr) {
-        Ok(v) => v,
+        Ok(v) => dbg!(v),
         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
     };
 
@@ -355,9 +358,9 @@ fn profile(pr: usize, lib_path: String) -> Result<(), Box<dyn std::error::Error>
         let output = Command::new("valgrind")
         .args(&["--tool=callgrind", "--dump-instr=yes", "--trace-children=yes", "../../../release/cargo-clippy"])
         .env("CARGO_TARGET_DIR", &format!("/tmp/mc{}branch", pr))
-        .env("RUSTFLAGS", "-Wclippy::all")
+        .env("RUSTFLAGS", rustflags)
         .env("LD_LIBRARY_PATH", lib_path)
-        .current_dir("/home/meow/git/rust-clippy/target/lintcheck/sources/tokio-1.38.1")
+        .current_dir(std::env::var("TO_PROFILE_PATH").unwrap())
         .output()?;
 
     let s = match std::str::from_utf8(&output.stderr) {
@@ -376,10 +379,10 @@ fn profile(pr: usize, lib_path: String) -> Result<(), Box<dyn std::error::Error>
     std::fs::remove_dir_all(format!("/tmp/mc{}master", pr)).unwrap();
 
     let result = ((master_ir_collected as f64 - branch_ir_collected as f64) / master_ir_collected as f64) * 100.0f64;
-    if result >= 0.19f64 {
+    if result.abs() >= 0.19f64 {
         println!("{}% {}", ((master_ir_collected as f64 - branch_ir_collected as f64) / master_ir_collected as f64) * 100.0f64, if master_ir_collected > branch_ir_collected {"THIS IS A PERFORMANCE IMPROVEMENT"} else {"PERF. REGRESSION"});
     } else {
-        println!("Not noticeable");
+        println!("Not noticeable ({})", result);
     }
 
     Ok(())
