@@ -1,12 +1,13 @@
 #![feature(f128)]
 #![feature(let_chains)]
-use octocrab::{self, Octocrab, params::{Direction, State, issues::Sort, pulls}};
-use std::fs::{self, read_to_string};
+use octocrab::{self, Octocrab, params::{Direction, State, issues::Sort, pulls}, search};
+use std::{error::Error, fs::{self, read_to_string}};
 use std::io::Write;
 use std::path::Path;
 use tokio;
 use tokio::time::{Duration, sleep};
 use std::process::Command;
+use std::time::SystemTime;
 
 use chrono::NaiveDate;
 use owo_colors::{Style as OwoStyle, OwoColorize};
@@ -46,7 +47,9 @@ struct Arguments {
     #[arg(long, default_value = "false")]
     pr_history: bool,
     #[arg(long, default_value = "false")]
-    pr_history_read: bool
+    pr_history_read: bool,
+    #[arg(long, default_value = "false")]
+    config_option_graph: bool,
 }
 
 const COMPLETE: owo_colors::Style = OwoStyle::new()
@@ -82,10 +85,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(())
     }
 
-
+    
     sleep(Duration::from_secs(5)).await; // Sleep 5 seconds to make sure that Github doesn't rate limit us
-
+    
     let octo = octocrab::instance().user_access_token(std::env::var("GH_TOKEN__").unwrap())?;
+    
+    // if args.config_option_graph {
+        // config_option_graph(&octo, 1).await?;
+        // return Ok(())
+    // }
 
     if args.pr_history {
         for i in 0..=50 {
@@ -317,7 +325,7 @@ fn bisect() {
 fn profile(pr: usize, lib_path: String, rustflags: String, clippy: String) -> Result<(), Box<dyn std::error::Error>>{
     let output = Command::new("git")
         .args(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(clippy)
+        .current_dir(&clippy)
         .output()?;
 
     let s = match std::str::from_utf8(&output.stdout) {
@@ -328,14 +336,19 @@ fn profile(pr: usize, lib_path: String, rustflags: String, clippy: String) -> Re
     if s.trim() != "master" {
         Command::new("git")
         .args(&["switch", "master"])
-        .current_dir(clippy)
+        .current_dir(&clippy)
         .output()?;
     }
 
-    Command::new("cargo")
-        .args(&["build", "--release"])
-        .current_dir(clippy)
-        .output()?;
+    // let output = Command::new("cargo")
+    //     .args(&["build", "--release"])
+    //     .current_dir(&clippy)
+    //     .output()?;
+
+    // let s = match std::str::from_utf8(&output.stderr) {
+    //     Ok(v) => dbg!(v),
+    //     Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    // };
 
     let output = Command::new("valgrind")
         .args(&["--tool=callgrind", "--dump-instr=yes", "--trace-children=yes", "../../../release/cargo-clippy"])
@@ -361,12 +374,12 @@ fn profile(pr: usize, lib_path: String, rustflags: String, clippy: String) -> Re
 
     Command::new("gh")
         .args(&["pr", "checkout", &pr.to_string()])
-        .current_dir(clippy)
+        .current_dir(&clippy)
         .output()?;
 
     Command::new("cargo")
         .args(&["build", "--release"])
-        .current_dir(clippy)
+        .current_dir(&clippy)
         .output()?;
 
         let output = Command::new("valgrind")
@@ -432,3 +445,27 @@ async fn pr_history(octo: Box<Octocrab>, page: Box<u32>, read: bool) -> Result<(
     sleep(Duration::from_secs(10)).await;
     Err(())
 }
+
+// async fn config_option_graph(octo: &Octocrab, page: u32) -> Result<(), Box<dyn Error>> {
+
+    // for option in &config_options {
+//
+    // let search_results = octo.search()
+        // .code(&format!("lang:toml {option}"))
+        // .per_page(5)
+        // .page(page)
+        // .send().await?;
+
+    // dbg!(&search_results.last);
+    // dbg!(&search_results.number_of_pages());
+    // for code_result in search_results.items {
+        // dbg!(code_result)
+    // }
+
+    // println!("@");
+    // sleep(Duration::from_secs(15)).await;
+    
+    // }
+    // Ok(())
+
+// }
